@@ -46,7 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment'])) {
         $name = $currentUser['display_name'];
         $email = $currentUser['email'] ?? '';
         $userId = $currentUser['id'];
-        // User đã đăng nhập → duyệt luôn
         $status = 'approved';
     } else {
         $name = trim($_POST['author_name'] ?? '');
@@ -58,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment'])) {
     if ($name === '' || $content === '') {
         $msg = 'Vui lòng nhập tên và nội dung bình luận.';
         $msgType = 'error';
-    } elseif (mb_strlen($content) < 5) {
+    } elseif (str_len($content) < 5) {
         $msg = 'Bình luận quá ngắn.';
         $msgType = 'error';
     } else {
@@ -79,7 +78,7 @@ $comments->execute([$post['id']]);
 $commentList = $comments->fetchAll();
 
 $pageTitle = $post['title'];
-$pageDesc = $post['excerpt'] ?: mb_substr(strip_tags($post['content']), 0, 160);
+$pageDesc = $post['excerpt'] ?: str_cut(strip_tags($post['content']), 0, 160);
 require __DIR__ . '/includes/header.php';
 ?>
 

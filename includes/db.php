@@ -5,6 +5,19 @@
 
 require_once __DIR__ . '/config.php';
 
+/** Độ dài chuỗi (hỗ trợ UTF-8, fallback khi không có mbstring) */
+function str_len(string $str): int {
+    return function_exists('mb_strlen') ? mb_strlen($str, 'UTF-8') : strlen($str);
+}
+
+/** Cắt chuỗi (hỗ trợ UTF-8) */
+function str_cut(string $str, int $start, ?int $length = null): string {
+    if (function_exists('mb_substr')) {
+        return $length === null ? mb_substr($str, $start, null, 'UTF-8') : mb_substr($str, $start, $length, 'UTF-8');
+    }
+    return $length === null ? substr($str, $start) : substr($str, $start, $length);
+}
+
 function getDB(): PDO {
     static $pdo = null;
     if ($pdo === null) {
@@ -160,7 +173,11 @@ function initDatabase(PDO $pdo): void {
 }
 
 function slugify(string $text): string {
-    $text = mb_strtolower($text, 'UTF-8');
+    if (function_exists('mb_strtolower')) {
+        $text = mb_strtolower($text, 'UTF-8');
+    } else {
+        $text = strtolower($text);
+    }
     $text = preg_replace('/[àáạảãâầấậẩẫăằắặẳẵ]/u', 'a', $text);
     $text = preg_replace('/[èéẹẻẽêềếệểễ]/u', 'e', $text);
     $text = preg_replace('/[ìíịỉĩ]/u', 'i', $text);

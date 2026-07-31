@@ -81,10 +81,11 @@ function register(string $username, string $password, string $displayName, strin
     if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
         return 'Tên đăng nhập chỉ gồm chữ, số, gạch dưới (3–30 ký tự).';
     }
-    if (mb_strlen($password) < 6) {
+    if (str_len($password) < 6) {
         return 'Mật khẩu phải có ít nhất 6 ký tự.';
     }
-    if (mb_strlen($displayName) < 2 || mb_strlen($displayName) > 50) {
+    $dnLen = str_len($displayName);
+    if ($dnLen < 2 || $dnLen > 50) {
         return 'Tên hiển thị phải từ 2–50 ký tự.';
     }
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
