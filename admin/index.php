@@ -89,7 +89,7 @@ $pendingComments = $db->query("SELECT c.id, c.author_name, c.content, c.created_
                         <tbody>
                             <?php foreach ($recentPosts as $p): ?>
                             <tr>
-                                <td><a href="post-edit.php?id=<?= $p['id'] ?>"><?= e(mb_substr($p['title'], 0, 40)) ?></a></td>
+                                <td><a href="post-edit.php?id=<?= $p['id'] ?>"><?= e(str_cut($p['title'], 0, 40)) ?></a></td>
                                 <td><span class="badge badge-<?= $p['status'] ?>"><?= $p['status'] === 'published' ? 'Xuất bản' : 'Nháp' ?></span></td>
                                 <td><?= date('d/m/Y', strtotime($p['created_at'])) ?></td>
                             </tr>
@@ -112,7 +112,7 @@ $pendingComments = $db->query("SELECT c.id, c.author_name, c.content, c.created_
                             <?php foreach ($pendingComments as $c): ?>
                             <tr>
                                 <td><?= e($c['author_name']) ?></td>
-                                <td><?= e(mb_substr($c['post_title'], 0, 30)) ?></td>
+                                <td><?= e(str_cut($c['post_title'], 0, 30)) ?></td>
                                 <td><a href="comments.php" class="btn btn-sm">Duyệt</a></td>
                             </tr>
                             <?php endforeach; ?>

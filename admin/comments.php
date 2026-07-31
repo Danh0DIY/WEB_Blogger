@@ -105,8 +105,8 @@ $comments = $db->query($sql)->fetchAll();
                             <br><span style="font-size:0.8rem;color:var(--text-muted)"><?= e($c['author_email']) ?></span>
                             <?php endif; ?>
                         </td>
-                        <td style="max-width:280px"><?= e(mb_substr($c['content'], 0, 120)) ?><?= mb_strlen($c['content']) > 120 ? '…' : '' ?></td>
-                        <td><a href="../post.php?slug=<?= e($c['post_slug']) ?>" target="_blank"><?= e(mb_substr($c['post_title'], 0, 30)) ?></a></td>
+                        <td style="max-width:280px"><?= e(str_cut($c['content'], 0, 120)) ?><?= str_len($c['content']) > 120 ? '…' : '' ?></td>
+                        <td><a href="../post.php?slug=<?= e($c['post_slug']) ?>" target="_blank"><?= e(str_cut($c['post_title'], 0, 30)) ?></a></td>
                         <td><span class="badge badge-<?= $c['status'] === 'approved' ? 'approved' : ($c['status'] === 'pending' ? 'pending' : 'draft') ?>"><?= e($c['status']) ?></span></td>
                         <td><?= date('d/m/Y H:i', strtotime($c['created_at'])) ?></td>
                         <td class="actions">
