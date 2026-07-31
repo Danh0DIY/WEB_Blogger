@@ -41,11 +41,16 @@ function getDB(): PDO {
 }
 
 function migrateDatabase(PDO $pdo): void {
-    // Thêm cột user_id vào comments nếu chưa có
     $cols = $pdo->query("PRAGMA table_info(comments)")->fetchAll();
     $names = array_column($cols, 'name');
     if (!in_array('user_id', $names, true)) {
         $pdo->exec("ALTER TABLE comments ADD COLUMN user_id INTEGER DEFAULT NULL");
+    }
+
+    $userCols = $pdo->query("PRAGMA table_info(users)")->fetchAll();
+    $userNames = array_column($userCols, 'name');
+    if (!in_array('avatar', $userNames, true)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL");
     }
 }
 
@@ -57,6 +62,7 @@ function initDatabase(PDO $pdo): void {
             password TEXT NOT NULL,
             display_name TEXT NOT NULL,
             email TEXT,
+            avatar TEXT,
             role TEXT DEFAULT 'user',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -160,7 +166,7 @@ function initDatabase(PDO $pdo): void {
         ->execute([
             'Chào mừng đến với WEB_Blogger',
             'chao-mung-den-voi-web-blogger',
-            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận (duyệt trước khi hiện)</li>\n                <li>Đăng ký / Đăng nhập người dùng</li>\n                <li>Quản trị admin riêng</li>\n                <li>Giao diện responsive</li>\n            </ul>\n            <p>Admin: <code>admin</code> / <code>admin123</code></p>",
+            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận</li>\n                <li>Đăng ký / Đăng nhập / Hồ sơ / Avatar</li>\n                <li>User đăng bài kèm ảnh</li>\n                <li>Quản trị admin riêng</li>\n            </ul>\n            <p>Admin: <code>admin</code> / <code>admin123</code></p>",
             'Bài viết chào mừng và hướng dẫn nhanh về blog kỹ thuật DIY.',
             1,
             1,
@@ -202,4 +208,52 @@ function timeAgo(string $datetime): string {
     if ($diff < 86400) return floor($diff / 3600) . ' giờ trước';
     if ($diff < 604800) return floor($diff / 86400) . ' ngày trước';
     return date('d/m/Y', $time);
+}
+
+/** URL avatar (hoặc placeholder chữ cái) */
+function avatarUrl(?string $avatar, string $name = '?'): string {
+    if ($avatar) {
+        return SITE_URL . '/' . AVATAR_URL . $avatar;
+    }
+    return '';
+}
+
+function avatarInitial(string $name): string {
+    $name = trim($name);
+    if ($name === '') return '?';
+    if (function_exists('mb_substr')) {
+        return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8');
+    }
+    return strtoupper(substr($name, 0, 1));
+}
+
+/**
+ * Upload ảnh. $destDir = thư mục tuyệt đối, trả về tên file hoặc null + $error.
+ */
+function uploadImage(array $file, string $destDir, ?string &$error = null): ?string {
+    if (empty($file['name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if (($file['error'] ?? 0) !== UPLOAD_ERR_OK) {
+        $error = 'Lỗi upload file.';
+        return null;
+    }
+    if (($file['size'] ?? 0) > MAX_UPLOAD_SIZE) {
+        $error = 'Ảnh quá lớn (tối đa 5MB).';
+        return null;
+    }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+        $error = 'Chỉ chấp nhận JPG, PNG, GIF, WebP.';
+        return null;
+    }
+    if (!is_dir($destDir)) {
+        mkdir($destDir, 0755, true);
+    }
+    $filename = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], rtrim($destDir, '/\\') . DIRECTORY_SEPARATOR . $filename)) {
+        $error = 'Không thể lưu file.';
+        return null;
+    }
+    return $filename;
 }

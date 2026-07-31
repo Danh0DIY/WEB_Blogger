@@ -15,6 +15,8 @@ define('DB_PATH', __DIR__ . '/../database/blog.db');
 // Upload
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');
 define('UPLOAD_URL', 'uploads/');
+define('AVATAR_DIR', __DIR__ . '/../uploads/avatars/');
+define('AVATAR_URL', 'uploads/avatars/');
 define('MAX_UPLOAD_SIZE', 5 * 1024 * 1024); // 5MB
 
 // Security

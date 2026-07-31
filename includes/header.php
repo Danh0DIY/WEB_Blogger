@@ -32,10 +32,19 @@ $pageDesc = $pageDesc ?? SITE_DESCRIPTION;
                 <a href="<?= SITE_URL ?>/category.php?slug=dien-tu">Điện tử</a>
                 <a href="<?= SITE_URL ?>/category.php?slug=diy-che-tao">DIY</a>
                 <?php if ($currentUser): ?>
+                    <a href="<?= SITE_URL ?>/write.php">Viết bài</a>
+                    <a href="<?= SITE_URL ?>/my-posts.php">Bài của tôi</a>
                     <?php if (isAdmin()): ?>
                     <a href="<?= SITE_URL ?>/admin/" class="btn-admin">Quản trị</a>
                     <?php endif; ?>
-                    <span class="nav-user"><?= e($currentUser['display_name']) ?></span>
+                    <a href="<?= SITE_URL ?>/account.php" class="nav-profile">
+                        <?php if (!empty($currentUser['avatar'])): ?>
+                        <img src="<?= e(avatarUrl($currentUser['avatar'])) ?>" alt="" class="nav-avatar">
+                        <?php else: ?>
+                        <span class="nav-avatar nav-avatar-initial"><?= e(avatarInitial($currentUser['display_name'])) ?></span>
+                        <?php endif; ?>
+                        <span class="nav-user"><?= e($currentUser['display_name']) ?></span>
+                    </a>
                     <a href="<?= SITE_URL ?>/logout.php" class="btn-login">Đăng xuất</a>
                 <?php else: ?>
                     <a href="<?= SITE_URL ?>/login.php" class="btn-login">Đăng nhập</a>
