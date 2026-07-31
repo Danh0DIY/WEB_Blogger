@@ -11,7 +11,7 @@ $db = getDB();
 $currentUser = currentUser();
 
 $stmt = $db->prepare("
-    SELECT p.*, c.name as category_name, c.slug as category_slug, u.display_name as author_name
+    SELECT p.*, c.name as category_name, c.slug as category_slug, u.display_name as author_name, u.avatar as author_avatar
     FROM posts p
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT JOIN users u ON p.author_id = u.id
@@ -73,7 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment'])) {
     }
 }
 
-$comments = $db->prepare("SELECT * FROM comments WHERE post_id = ? AND status = 'approved' ORDER BY created_at ASC");
+$comments = $db->prepare("
+    SELECT c.*, u.avatar as user_avatar, u.display_name as user_display_name
+    FROM comments c
+    LEFT JOIN users u ON c.user_id = u.id
+    WHERE c.post_id = ? AND c.status = 'approved'
+    ORDER BY c.created_at ASC
+");
 $comments->execute([$post['id']]);
 $commentList = $comments->fetchAll();
 
@@ -156,12 +162,23 @@ require __DIR__ . '/includes/header.php';
             <p style="color: var(--text-muted);">Chưa có bình luận nào. Hãy là người đầu tiên!</p>
             <?php else: ?>
                 <?php foreach ($commentList as $c): ?>
+                <?php
+                    $cName = $c['user_display_name'] ?: $c['author_name'];
+                    $cAvatar = $c['user_avatar'] ?? null;
+                ?>
                 <div class="comment">
-                    <div class="comment-header">
-                        <span class="comment-author"><?= e($c['author_name']) ?></span>
-                        <span class="comment-date"><?= timeAgo($c['created_at']) ?></span>
+                    <?php if ($cAvatar): ?>
+                    <img src="<?= e(avatarUrl($cAvatar)) ?>" alt="" class="comment-avatar">
+                    <?php else: ?>
+                    <span class="comment-avatar comment-avatar-initial"><?= e(avatarInitial($cName)) ?></span>
+                    <?php endif; ?>
+                    <div class="comment-body-wrap">
+                        <div class="comment-header">
+                            <span class="comment-author"><?= e($cName) ?></span>
+                            <span class="comment-date"><?= timeAgo($c['created_at']) ?></span>
+                        </div>
+                        <div class="comment-body"><?= nl2br(e($c['content'])) ?></div>
                     </div>
-                    <div class="comment-body"><?= nl2br(e($c['content'])) ?></div>
                 </div>
                 <?php endforeach; ?>
             <?php endif; ?>
