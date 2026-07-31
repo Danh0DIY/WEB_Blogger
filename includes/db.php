@@ -9,6 +9,10 @@ function getDB(): PDO {
     static $pdo = null;
     if ($pdo === null) {
         $isNew = !file_exists(DB_PATH);
+        $dir = dirname(DB_PATH);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
         $pdo = new PDO('sqlite:' . DB_PATH);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
@@ -16,9 +20,20 @@ function getDB(): PDO {
 
         if ($isNew) {
             initDatabase($pdo);
+        } else {
+            migrateDatabase($pdo);
         }
     }
     return $pdo;
+}
+
+function migrateDatabase(PDO $pdo): void {
+    // Thêm cột user_id vào comments nếu chưa có
+    $cols = $pdo->query("PRAGMA table_info(comments)")->fetchAll();
+    $names = array_column($cols, 'name');
+    if (!in_array('user_id', $names, true)) {
+        $pdo->exec("ALTER TABLE comments ADD COLUMN user_id INTEGER DEFAULT NULL");
+    }
 }
 
 function initDatabase(PDO $pdo): void {
@@ -29,7 +44,7 @@ function initDatabase(PDO $pdo): void {
             password TEXT NOT NULL,
             display_name TEXT NOT NULL,
             email TEXT,
-            role TEXT DEFAULT 'admin',
+            role TEXT DEFAULT 'user',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -77,13 +92,15 @@ function initDatabase(PDO $pdo): void {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER NOT NULL,
             parent_id INTEGER DEFAULT NULL,
+            user_id INTEGER DEFAULT NULL,
             author_name TEXT NOT NULL,
             author_email TEXT,
             content TEXT NOT NULL,
             status TEXT DEFAULT 'pending',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-            FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
+            FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
 
         CREATE INDEX idx_posts_slug ON posts(slug);
@@ -130,7 +147,7 @@ function initDatabase(PDO $pdo): void {
         ->execute([
             'Chào mừng đến với WEB_Blogger',
             'chao-mung-den-voi-web-blogger',
-            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận (duyệt trước khi hiện)</li>\n                <li>Đăng nhập quản trị</li>\n                <li>Giao diện responsive</li>\n            </ul>\n            <p>Đăng nhập admin: <code>admin</code> / <code>admin123</code></p>",
+            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận (duyệt trước khi hiện)</li>\n                <li>Đăng ký / Đăng nhập người dùng</li>\n                <li>Quản trị admin riêng</li>\n                <li>Giao diện responsive</li>\n            </ul>\n            <p>Admin: <code>admin</code> / <code>admin123</code></p>",
             'Bài viết chào mừng và hướng dẫn nhanh về blog kỹ thuật DIY.',
             1,
             1,

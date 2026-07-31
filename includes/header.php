@@ -32,9 +32,14 @@ $pageDesc = $pageDesc ?? SITE_DESCRIPTION;
                 <a href="<?= SITE_URL ?>/category.php?slug=dien-tu">Điện tử</a>
                 <a href="<?= SITE_URL ?>/category.php?slug=diy-che-tao">DIY</a>
                 <?php if ($currentUser): ?>
+                    <?php if (isAdmin()): ?>
                     <a href="<?= SITE_URL ?>/admin/" class="btn-admin">Quản trị</a>
+                    <?php endif; ?>
+                    <span class="nav-user"><?= e($currentUser['display_name']) ?></span>
+                    <a href="<?= SITE_URL ?>/logout.php" class="btn-login">Đăng xuất</a>
                 <?php else: ?>
-                    <a href="<?= SITE_URL ?>/admin/login.php" class="btn-login">Đăng nhập</a>
+                    <a href="<?= SITE_URL ?>/login.php" class="btn-login">Đăng nhập</a>
+                    <a href="<?= SITE_URL ?>/register.php" class="btn-register">Đăng ký</a>
                 <?php endif; ?>
             </nav>
         </div>

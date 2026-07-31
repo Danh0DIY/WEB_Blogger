@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
 
 $slug = trim($_GET['slug'] ?? '');
 if ($slug === '') {
@@ -8,6 +8,8 @@ if ($slug === '') {
 }
 
 $db = getDB();
+$currentUser = currentUser();
+
 $stmt = $db->prepare("
     SELECT p.*, c.name as category_name, c.slug as category_slug, u.display_name as author_name
     FROM posts p
@@ -38,9 +40,20 @@ $msg = '';
 $msgType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment'])) {
-    $name = trim($_POST['author_name'] ?? '');
-    $email = trim($_POST['author_email'] ?? '');
     $content = trim($_POST['content'] ?? '');
+
+    if ($currentUser) {
+        $name = $currentUser['display_name'];
+        $email = $currentUser['email'] ?? '';
+        $userId = $currentUser['id'];
+        // User đã đăng nhập → duyệt luôn
+        $status = 'approved';
+    } else {
+        $name = trim($_POST['author_name'] ?? '');
+        $email = trim($_POST['author_email'] ?? '');
+        $userId = null;
+        $status = 'pending';
+    }
 
     if ($name === '' || $content === '') {
         $msg = 'Vui lòng nhập tên và nội dung bình luận.';
@@ -49,10 +62,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comment'])) {
         $msg = 'Bình luận quá ngắn.';
         $msgType = 'error';
     } else {
-        $db->prepare("INSERT INTO comments (post_id, author_name, author_email, content, status) VALUES (?, ?, ?, ?, 'pending')")
-            ->execute([$post['id'], $name, $email ?: null, $content]);
-        $msg = 'Bình luận của bạn đã được gửi và đang chờ duyệt.';
+        $db->prepare("INSERT INTO comments (post_id, user_id, author_name, author_email, content, status) VALUES (?, ?, ?, ?, ?, ?)")
+            ->execute([$post['id'], $userId, $name, $email ?: null, $content, $status]);
+        if ($status === 'approved') {
+            $msg = 'Bình luận của bạn đã được đăng.';
+        } else {
+            $msg = 'Bình luận của bạn đã được gửi và đang chờ duyệt.';
+        }
         $msgType = 'success';
+        $_POST = [];
     }
 }
 
@@ -107,6 +125,16 @@ require __DIR__ . '/includes/header.php';
 
             <form class="comment-form" method="post">
                 <h3>Viết bình luận</h3>
+                <?php if ($currentUser): ?>
+                <p style="color:var(--text-muted);margin-bottom:1rem;font-size:0.9rem">
+                    Đăng với tên <strong><?= e($currentUser['display_name']) ?></strong>
+                    · Bình luận sẽ hiển thị ngay
+                </p>
+                <?php else: ?>
+                <p style="color:var(--text-muted);margin-bottom:1rem;font-size:0.9rem">
+                    <a href="login.php?redirect=post.php?slug=<?= e(urlencode($slug)) ?>">Đăng nhập</a> để bình luận nhanh hơn,
+                    hoặc gửi ẩn danh (cần duyệt).
+                </p>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="author_name">Tên *</label>
@@ -117,6 +145,7 @@ require __DIR__ . '/includes/header.php';
                         <input type="email" id="author_email" name="author_email" maxlength="150" value="<?= e($_POST['author_email'] ?? '') ?>">
                     </div>
                 </div>
+                <?php endif; ?>
                 <div class="form-group">
                     <label for="content">Nội dung *</label>
                     <textarea id="content" name="content" required maxlength="2000"><?= e($_POST['content'] ?? '') ?></textarea>
