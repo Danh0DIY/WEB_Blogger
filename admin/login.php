@@ -3,7 +3,11 @@ require_once __DIR__ . '/../includes/auth.php';
 startSession();
 
 if (isLoggedIn()) {
-    header('Location: index.php');
+    if (isAdmin()) {
+        header('Location: index.php');
+    } else {
+        header('Location: ../');
+    }
     exit;
 }
 
@@ -14,8 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($username === '' || $password === '') {
         $error = 'Vui lòng nhập đầy đủ thông tin.';
     } elseif (login($username, $password)) {
-        header('Location: index.php');
-        exit;
+        if (isAdmin()) {
+            header('Location: index.php');
+            exit;
+        }
+        // User thường không được vào admin
+        logout();
+        $error = 'Tài khoản này không có quyền quản trị.';
     } else {
         $error = 'Sai tên đăng nhập hoặc mật khẩu.';
     }
@@ -26,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng nhập | <?= e(SITE_NAME) ?></title>
+    <title>Đăng nhập Admin | <?= e(SITE_NAME) ?></title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -53,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
             <p style="text-align:center;margin-top:1.25rem;font-size:0.85rem;color:var(--text-muted)">
                 <a href="../">← Về trang chủ</a>
+                · <a href="../login.php">Đăng nhập user</a>
             </p>
         </div>
     </div>

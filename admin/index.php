@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-requireLogin();
+requireAdmin();
 $user = currentUser();
 $db = getDB();
 
@@ -11,6 +11,7 @@ $stats = [
     'pending' => (int)$db->query("SELECT COUNT(*) FROM comments WHERE status = 'pending'")->fetchColumn(),
     'categories' => (int)$db->query("SELECT COUNT(*) FROM categories")->fetchColumn(),
     'tags' => (int)$db->query("SELECT COUNT(*) FROM tags")->fetchColumn(),
+    'users' => (int)$db->query("SELECT COUNT(*) FROM users WHERE role = 'user'")->fetchColumn(),
 ];
 
 $recentPosts = $db->query("SELECT id, title, status, created_at FROM posts ORDER BY created_at DESC LIMIT 5")->fetchAll();
@@ -39,6 +40,7 @@ $pendingComments = $db->query("SELECT c.id, c.author_name, c.content, c.created_
             <a href="categories.php">Danh mục</a>
             <a href="tags.php">Tags</a>
             <a href="comments.php">Bình luận <?= $stats['pending'] ? "({$stats['pending']})" : '' ?></a>
+            <a href="users.php">Người dùng</a>
             <a href="../" target="_blank">Xem website</a>
             <a href="logout.php">Đăng xuất</a>
         </nav>
@@ -67,12 +69,12 @@ $pendingComments = $db->query("SELECT c.id, c.author_name, c.content, c.created_
                 <div class="stat-label">Chờ duyệt</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value"><?= $stats['categories'] ?></div>
-                <div class="stat-label">Danh mục</div>
+                <div class="stat-value"><?= $stats['users'] ?></div>
+                <div class="stat-label">Người dùng</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value"><?= $stats['tags'] ?></div>
-                <div class="stat-label">Tags</div>
+                <div class="stat-value"><?= $stats['categories'] ?></div>
+                <div class="stat-label">Danh mục</div>
             </div>
         </div>
 
