@@ -43,11 +43,14 @@ img { max-width: 100%; height: auto; display: block; }
 .header-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
 .logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.25rem; color: var(--text); }
 .logo-icon { font-size: 1.5rem; }
-.main-nav { display: flex; align-items: center; gap: 1.5rem; }
+.main-nav { display: flex; align-items: center; gap: 1.25rem; }
 .main-nav a { color: var(--text-muted); font-weight: 500; font-size: 0.95rem; }
 .main-nav a:hover { color: var(--text); }
+.nav-user { color: var(--text); font-size: 0.9rem; font-weight: 500; }
 .btn-admin, .btn-login { background: var(--primary); color: #fff !important; padding: 0.4rem 1rem; border-radius: 8px; font-size: 0.875rem; }
 .btn-admin:hover, .btn-login:hover { background: var(--primary-hover); }
+.btn-register { border: 1px solid var(--border); color: var(--text) !important; padding: 0.4rem 1rem; border-radius: 8px; font-size: 0.875rem; }
+.btn-register:hover { border-color: var(--primary); color: var(--primary) !important; }
 .nav-toggle { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 4px; }
 .nav-toggle span { width: 24px; height: 2px; background: var(--text); border-radius: 2px; }
 
@@ -133,6 +136,10 @@ img { max-width: 100%; height: auto; display: block; }
 .alert-success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: var(--success); }
 .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--danger); }
 .alert-info { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--primary); }
+
+.auth-page { display: flex; justify-content: center; padding: 2rem 0; }
+.auth-footer { text-align: center; margin-top: 1.25rem; font-size: 0.9rem; color: var(--text-muted); }
+.auth-footer a { font-weight: 500; }
 
 .site-footer { background: var(--bg-card); border-top: 1px solid var(--border); padding: 3rem 0 1.5rem; margin-top: auto; }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1.5fr; gap: 2rem; margin-bottom: 2rem; }

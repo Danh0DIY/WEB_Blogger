@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
-requireLogin();
+requireAdmin();
 $db = getDB();
 
 $msg = '';
@@ -72,6 +72,7 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
             <a href="categories.php">Danh mục</a>
             <a href="tags.php" class="active">Tags</a>
             <a href="comments.php">Bình luận</a>
+            <a href="users.php">Người dùng</a>
             <a href="../" target="_blank">Xem website</a>
             <a href="logout.php">Đăng xuất</a>
         </nav>
