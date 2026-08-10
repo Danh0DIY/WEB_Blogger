@@ -1,0 +1,61 @@
+# Mẫu Apache VirtualHost cho WEB_Blogger + Let's Encrypt
+# 1. Đặt file vào /etc/apache2/sites-available/web-blogger.conf
+# 2. sudo a2enmod ssl rewrite headers
+# 3. sudo a2ensite web-blogger
+# 4. sudo certbot --apache -d your-domain.com -d www.your-domain.com
+
+<VirtualHost *:80>
+    ServerName your-domain.com
+    ServerAlias www.your-domain.com
+    DocumentRoot /var/www/WEB_Blogger
+
+    <Directory /var/www/WEB_Blogger>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # ACME
+    Alias /.well-known/acme-challenge/ /var/www/WEB_Blogger/.well-known/acme-challenge/
+    <Directory /var/www/WEB_Blogger/.well-known/acme-challenge>
+        Options None
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName your-domain.com
+    ServerAlias www.your-domain.com
+    DocumentRoot /var/www/WEB_Blogger
+
+    SSLEngine on
+    SSLCertificateFile      /etc/letsencrypt/live/your-domain.com/fullchain.pem
+    SSLCertificateKeyFile   /etc/letsencrypt/live/your-domain.com/privkey.pem
+    # Include optional Let's Encrypt options nếu có:
+    # Include /etc/letsencrypt/options-ssl-apache.conf
+
+    <Directory /var/www/WEB_Blogger>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Chặn thư mục nhạy cảm
+    <DirectoryMatch "^/var/www/WEB_Blogger/(includes|database|tools)">
+        Require all denied
+    </DirectoryMatch>
+
+    <FilesMatch "\.(db|sqlite)$">
+        Require all denied
+    </FilesMatch>
+
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options SAMEORIGIN
+
+    ErrorLog ${APACHE_LOG_DIR}/web-blogger-error.log
+    CustomLog ${APACHE_LOG_DIR}/web-blogger-access.log combined
+</VirtualHost>

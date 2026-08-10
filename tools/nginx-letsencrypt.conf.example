@@ -1,0 +1,74 @@
+# Mẫu Nginx cho WEB_Blogger + Let's Encrypt
+# 1. Đổi your-domain.com và đường dẫn root
+# 2. sudo ln -s ... /etc/nginx/sites-enabled/
+# 3. sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+#
+# Certbot sẽ tự thêm listen 443 ssl và đường dẫn fullchain/privkey.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name your-domain.com www.your-domain.com;
+
+    # ACME challenge (Let's Encrypt)
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/WEB_Blogger;
+        default_type "text/plain";
+        allow all;
+    }
+
+    # Redirect HTTP → HTTPS (sau khi đã có cert có thể để certbot quản lý)
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name your-domain.com www.your-domain.com;
+
+    # Let's Encrypt — certbot ghi đè/điền các dòng này
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+    root /var/www/WEB_Blogger;
+    index index.php index.html;
+
+    # Bảo mật header bổ sung (app PHP cũng gửi HSTS khi FORCE_HTTPS)
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+
+    # Không serve file nhạy cảm
+    location ~ /\. {
+        deny all;
+    }
+    location ~* \.(db|sqlite|sql)$ {
+        deny all;
+    }
+    location ~ ^/(includes|database|tools)/ {
+        deny all;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;  # đổi version PHP nếu cần
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+        # Proxy HTTPS detection
+        fastcgi_param HTTPS on;
+    }
+
+    location ~* \.(css|js|jpg|jpeg|png|gif|webp|ico|svg|woff2?)$ {
+        expires 7d;
+        access_log off;
+    }
+
+    client_max_body_size 8M;
+}

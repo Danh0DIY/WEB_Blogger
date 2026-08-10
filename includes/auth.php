@@ -3,13 +3,27 @@
  * Authentication helpers
  */
 
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/db.php';
 
 function startSession(): void {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_name(SESSION_NAME);
-        session_start();
+    if (session_status() !== PHP_SESSION_NONE) {
+        return;
     }
+
+    session_name(SESSION_NAME);
+
+    $secure = isHttpsRequest() && !isLocalhost();
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+
+    session_start();
 }
 
 function isLoggedIn(): bool {
@@ -42,7 +56,9 @@ function requireAdmin(): void {
 }
 
 function currentUser(): ?array {
-    if (!isLoggedIn()) return null;
+    if (!isLoggedIn()) {
+        return null;
+    }
     static $user = null;
     if ($user === null) {
         $stmt = getDB()->prepare('SELECT id, username, display_name, email, avatar, role FROM users WHERE id = ?');
@@ -56,11 +72,8 @@ function currentUser(): ?array {
     return $user;
 }
 
-/** Xóa cache currentUser sau khi cập nhật hồ sơ */
 function refreshCurrentUser(): void {
-    // Force reload on next currentUser() call by clearing static via session touch
-    // PHP static in currentUser is per-request, so just don't cache across updates in same request:
-    // callers should re-fetch after update
+    // Per-request static; gọi lại currentUser sau khi UPDATE hồ sơ trong cùng request
 }
 
 function login(string $username, string $password): bool {
@@ -69,6 +82,7 @@ function login(string $username, string $password): bool {
     $row = $stmt->fetch();
     if ($row && password_verify($password, $row['password'])) {
         startSession();
+        session_regenerate_id(true);
         $_SESSION['user_id'] = (int)$row['id'];
         return true;
     }
@@ -118,11 +132,11 @@ function register(string $username, string $password, string $displayName, strin
 
     $id = (int)$db->lastInsertId();
     startSession();
+    session_regenerate_id(true);
     $_SESSION['user_id'] = $id;
     return null;
 }
 
-/** Đổi mật khẩu. null = OK, string = lỗi */
 function changePassword(int $userId, string $current, string $new, string $confirm): ?string {
     if ($new === '' || $current === '') {
         return 'Vui lòng nhập đầy đủ mật khẩu.';
@@ -149,7 +163,14 @@ function logout(): void {
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+        setcookie(session_name(), '', [
+            'expires'  => time() - 42000,
+            'path'     => $p['path'],
+            'domain'   => $p['domain'],
+            'secure'   => $p['secure'],
+            'httponly' => $p['httponly'],
+            'samesite' => $p['samesite'] ?? 'Lax',
+        ]);
     }
     session_destroy();
 }
