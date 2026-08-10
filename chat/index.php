@@ -6,6 +6,7 @@ $pageTitle = 'Chat';
 $pageDesc = 'Nhắn tin & chat nhóm riêng tư';
 require_once __DIR__ . '/../includes/header.php';
 ?>
+<link rel="stylesheet" href="<?= SITE_URL ?>/assets/css/chat.css">
 <div class="chat-app">
     <aside class="chat-sidebar">
         <div class="chat-sidebar-header">
@@ -51,7 +52,6 @@ require_once __DIR__ . '/../includes/header.php';
     </section>
 </div>
 
-<!-- Modal: New DM -->
 <div class="modal" id="modalDm" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-box">
@@ -66,7 +66,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<!-- Modal: New Group -->
 <div class="modal" id="modalGroup" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-box">
@@ -94,7 +93,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<!-- Modal: Conv info -->
 <div class="modal" id="modalInfo" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-box">
