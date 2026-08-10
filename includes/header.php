@@ -32,6 +32,7 @@ $pageDesc = $pageDesc ?? SITE_DESCRIPTION;
                 <a href="<?= SITE_URL ?>/category.php?slug=dien-tu">Điện tử</a>
                 <a href="<?= SITE_URL ?>/category.php?slug=diy-che-tao">DIY</a>
                 <?php if ($currentUser): ?>
+                    <a href="<?= SITE_URL ?>/chat/">Chat</a>
                     <a href="<?= SITE_URL ?>/write.php">Viết bài</a>
                     <a href="<?= SITE_URL ?>/my-posts.php">Bài của tôi</a>
                     <?php if (isAdmin()): ?>
