@@ -1,16 +1,9 @@
 <?php
-/**
- * Database connection & initialization (SQLite)
- */
-
 require_once __DIR__ . '/config.php';
 
-/** Độ dài chuỗi (hỗ trợ UTF-8, fallback khi không có mbstring) */
 function str_len(string $str): int {
     return function_exists('mb_strlen') ? mb_strlen($str, 'UTF-8') : strlen($str);
 }
-
-/** Cắt chuỗi (hỗ trợ UTF-8) */
 function str_cut(string $str, int $start, ?int $length = null): string {
     if (function_exists('mb_substr')) {
         return $length === null ? mb_substr($str, $start, null, 'UTF-8') : mb_substr($str, $start, $length, 'UTF-8');
@@ -23,19 +16,12 @@ function getDB(): PDO {
     if ($pdo === null) {
         $isNew = !file_exists(DB_PATH);
         $dir = dirname(DB_PATH);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
         $pdo = new PDO('sqlite:' . DB_PATH);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->exec('PRAGMA foreign_keys = ON');
-
-        if ($isNew) {
-            initDatabase($pdo);
-        } else {
-            migrateDatabase($pdo);
-        }
+        if ($isNew) initDatabase($pdo); else migrateDatabase($pdo);
     }
     return $pdo;
 }
@@ -46,14 +32,39 @@ function migrateDatabase(PDO $pdo): void {
     if (!in_array('user_id', $names, true)) {
         $pdo->exec("ALTER TABLE comments ADD COLUMN user_id INTEGER DEFAULT NULL");
     }
-
     $userCols = $pdo->query("PRAGMA table_info(users)")->fetchAll();
     $userNames = array_column($userCols, 'name');
     if (!in_array('avatar', $userNames, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL");
     }
-
-    // Chat tables
+    $hasPush = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='push_subscriptions'")->fetch();
+    if (!$hasPush) {
+        $pdo->exec("
+            CREATE TABLE push_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                endpoint TEXT NOT NULL UNIQUE,
+                p256dh TEXT NOT NULL,
+                auth_key TEXT NOT NULL,
+                user_agent TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE TABLE notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                url TEXT DEFAULT '/chat/',
+                conversation_id INTEGER,
+                is_read INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
+        ");
+    }
     $exists = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'")->fetch();
     if (!$exists) {
         $pdo->exec("
@@ -67,7 +78,6 @@ function migrateDatabase(PDO $pdo): void {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
             );
-
             CREATE TABLE conversation_members (
                 conversation_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
@@ -78,7 +88,6 @@ function migrateDatabase(PDO $pdo): void {
                 FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
-
             CREATE TABLE messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 conversation_id INTEGER NOT NULL,
@@ -88,7 +97,6 @@ function migrateDatabase(PDO $pdo): void {
                 FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
-
             CREATE INDEX idx_messages_conv ON messages(conversation_id);
             CREATE INDEX idx_messages_created ON messages(created_at);
             CREATE INDEX idx_conv_members_user ON conversation_members(user_id);
@@ -108,7 +116,6 @@ function initDatabase(PDO $pdo): void {
             role TEXT DEFAULT 'user',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
-
         CREATE TABLE categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
@@ -116,14 +123,12 @@ function initDatabase(PDO $pdo): void {
             description TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
-
         CREATE TABLE tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             slug TEXT NOT NULL UNIQUE,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
-
         CREATE TABLE posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -140,7 +145,6 @@ function initDatabase(PDO $pdo): void {
             FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
             FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
         );
-
         CREATE TABLE post_tags (
             post_id INTEGER NOT NULL,
             tag_id INTEGER NOT NULL,
@@ -148,7 +152,6 @@ function initDatabase(PDO $pdo): void {
             FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
             FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
         );
-
         CREATE TABLE comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER NOT NULL,
@@ -163,7 +166,6 @@ function initDatabase(PDO $pdo): void {
             FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
-
         CREATE TABLE conversations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT NOT NULL DEFAULT 'group',
@@ -174,7 +176,6 @@ function initDatabase(PDO $pdo): void {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
         );
-
         CREATE TABLE conversation_members (
             conversation_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
@@ -185,7 +186,6 @@ function initDatabase(PDO $pdo): void {
             FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
-
         CREATE TABLE messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             conversation_id INTEGER NOT NULL,
@@ -195,7 +195,28 @@ function initDatabase(PDO $pdo): void {
             FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
-
+        CREATE TABLE push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth_key TEXT NOT NULL,
+            user_agent TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE TABLE notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            url TEXT DEFAULT '/chat/',
+            conversation_id INTEGER,
+            is_read INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
         CREATE INDEX idx_posts_slug ON posts(slug);
         CREATE INDEX idx_posts_status ON posts(status);
         CREATE INDEX idx_posts_category ON posts(category_id);
@@ -204,63 +225,22 @@ function initDatabase(PDO $pdo): void {
         CREATE INDEX idx_messages_conv ON messages(conversation_id);
         CREATE INDEX idx_messages_created ON messages(created_at);
         CREATE INDEX idx_conv_members_user ON conversation_members(user_id);
+        CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
     ");
-
     $hash = password_hash('admin123', PASSWORD_DEFAULT);
-    $pdo->prepare("INSERT INTO users (username, password, display_name, email, role) VALUES (?, ?, ?, ?, ?)")
-        ->execute(['admin', $hash, 'Administrator', 'admin@example.com', 'admin']);
-
-    $cats = [
-        ['ESP32 & IoT', 'esp32-iot', 'Dự án ESP32, Arduino, IoT'],
-        ['Điện tử', 'dien-tu', 'Mạch điện, linh kiện, hàn mạch'],
-        ['Lập trình', 'lap-trinh', 'Code, phần mềm, web, app'],
-        ['DIY & Chế tạo', 'diy-che-tao', 'Dự án tự làm, sửa chữa'],
-        ['Hướng dẫn', 'huong-dan', 'Tutorial, mẹo, tip'],
-    ];
+    $pdo->prepare("INSERT INTO users (username, password, display_name, email, role) VALUES (?, ?, ?, ?, ?)")->execute(['admin', $hash, 'Administrator', 'admin@example.com', 'admin']);
+    $cats = [['ESP32 & IoT','esp32-iot','Dự án ESP32, Arduino, IoT'],['Điện tử','dien-tu','Mạch điện, linh kiện, hàn mạch'],['Lập trình','lap-trinh','Code, phần mềm, web, app'],['DIY & Chế tạo','diy-che-tao','Dự án tự làm, sửa chữa'],['Hướng dẫn','huong-dan','Tutorial, mẹo, tip']];
     $stmt = $pdo->prepare("INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)");
-    foreach ($cats as $c) {
-        $stmt->execute($c);
-    }
-
-    $tags = [
-        ['ESP32', 'esp32'],
-        ['Arduino', 'arduino'],
-        ['PlatformIO', 'platformio'],
-        ['C++', 'cpp'],
-        ['Python', 'python'],
-        ['PCB', 'pcb'],
-        ['Sensor', 'sensor'],
-        ['Web', 'web'],
-        ['DIY', 'diy'],
-        ['Tutorial', 'tutorial'],
-    ];
+    foreach ($cats as $c) $stmt->execute($c);
+    $tags = [['ESP32','esp32'],['Arduino','arduino'],['PlatformIO','platformio'],['C++','cpp'],['Python','python'],['PCB','pcb'],['Sensor','sensor'],['Web','web'],['DIY','diy'],['Tutorial','tutorial']];
     $stmt = $pdo->prepare("INSERT INTO tags (name, slug) VALUES (?, ?)");
-    foreach ($tags as $t) {
-        $stmt->execute($t);
-    }
-
-    $pdo->prepare("INSERT INTO posts (title, slug, content, excerpt, category_id, author_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        ->execute([
-            'Chào mừng đến với WEB_Blogger',
-            'chao-mung-den-voi-web-blogger',
-            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận</li>\n                <li>Đăng ký / Đăng nhập / Hồ sơ / Avatar</li>\n                <li>User đăng bài kèm ảnh</li>\n                <li>Chat 1-1 & nhóm riêng tư</li>\n                <li>Quản trị admin riêng</li>\n            </ul>\n            <p>Admin: <code>admin</code> / <code>admin123</code></p>",
-            'Bài viết chào mừng và hướng dẫn nhanh về blog kỹ thuật DIY.',
-            1,
-            1,
-            'published'
-        ]);
-
-    $postId = $pdo->lastInsertId();
-    $pdo->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)")->execute([$postId, 9]);
-    $pdo->prepare("INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)")->execute([$postId, 10]);
+    foreach ($tags as $t) $stmt->execute($t);
+    $pdo->prepare("INSERT INTO posts (title, slug, content, excerpt, category_id, author_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)")->execute(['Chào mừng đến với WEB_Blogger','chao-mung-den-voi-web-blogger','<p>Blog kỹ thuật & DIY.</p>','Bài chào mừng',1,1,'published']);
 }
 
 function slugify(string $text): string {
-    if (function_exists('mb_strtolower')) {
-        $text = mb_strtolower($text, 'UTF-8');
-    } else {
-        $text = strtolower($text);
-    }
+    if (function_exists('mb_strtolower')) $text = mb_strtolower($text, 'UTF-8');
+    else $text = strtolower($text);
     $text = preg_replace('/[àáạảãâầấậẩẫăằắặẳẵ]/u', 'a', $text);
     $text = preg_replace('/[èéẹẻẽêềếệểễ]/u', 'e', $text);
     $text = preg_replace('/[ìíịỉĩ]/u', 'i', $text);
@@ -272,65 +252,29 @@ function slugify(string $text): string {
     $text = preg_replace('/[\s-]+/', '-', trim($text));
     return $text ?: 'post-' . time();
 }
-
-function e(?string $str): string {
-    return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
-}
-
+function e(?string $str): string { return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8'); }
 function timeAgo(string $datetime): string {
-    $time = strtotime($datetime);
-    $diff = time() - $time;
-    if ($diff < 60) return 'vừa xong';
-    if ($diff < 3600) return floor($diff / 60) . ' phút trước';
-    if ($diff < 86400) return floor($diff / 3600) . ' giờ trước';
-    if ($diff < 604800) return floor($diff / 86400) . ' ngày trước';
-    return date('d/m/Y', $time);
+    require_once __DIR__ . '/time.php';
+    return timeAgoFixed($datetime);
 }
-
-/** URL avatar (hoặc placeholder chữ cái) */
 function avatarUrl(?string $avatar, string $name = '?'): string {
-    if ($avatar) {
-        return SITE_URL . '/' . AVATAR_URL . $avatar;
-    }
+    if ($avatar) return SITE_URL . '/' . AVATAR_URL . $avatar;
     return '';
 }
-
 function avatarInitial(string $name): string {
     $name = trim($name);
     if ($name === '') return '?';
-    if (function_exists('mb_substr')) {
-        return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8');
-    }
+    if (function_exists('mb_substr')) return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8');
     return strtoupper(substr($name, 0, 1));
 }
-
-/**
- * Upload ảnh. $destDir = thư mục tuyệt đối, trả về tên file hoặc null + $error.
- */
 function uploadImage(array $file, string $destDir, ?string &$error = null): ?string {
-    if (empty($file['name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-        return null;
-    }
-    if (($file['error'] ?? 0) !== UPLOAD_ERR_OK) {
-        $error = 'Lỗi upload file.';
-        return null;
-    }
-    if (($file['size'] ?? 0) > MAX_UPLOAD_SIZE) {
-        $error = 'Ảnh quá lớn (tối đa 5MB).';
-        return null;
-    }
+    if (empty($file['name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+    if (($file['error'] ?? 0) !== UPLOAD_ERR_OK) { $error = 'Lỗi upload file.'; return null; }
+    if (($file['size'] ?? 0) > MAX_UPLOAD_SIZE) { $error = 'Ảnh quá lớn (tối đa 5MB).'; return null; }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
-        $error = 'Chỉ chấp nhận JPG, PNG, GIF, WebP.';
-        return null;
-    }
-    if (!is_dir($destDir)) {
-        mkdir($destDir, 0755, true);
-    }
+    if (!in_array($ext, ['jpg','jpeg','png','gif','webp'], true)) { $error = 'Chỉ chấp nhận JPG, PNG, GIF, WebP.'; return null; }
+    if (!is_dir($destDir)) mkdir($destDir, 0755, true);
     $filename = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    if (!move_uploaded_file($file['tmp_name'], rtrim($destDir, '/\\') . DIRECTORY_SEPARATOR . $filename)) {
-        $error = 'Không thể lưu file.';
-        return null;
-    }
+    if (!move_uploaded_file($file['tmp_name'], rtrim($destDir, '/\\') . DIRECTORY_SEPARATOR . $filename)) { $error = 'Không thể lưu file.'; return null; }
     return $filename;
 }
