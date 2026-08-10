@@ -52,6 +52,48 @@ function migrateDatabase(PDO $pdo): void {
     if (!in_array('avatar', $userNames, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL");
     }
+
+    // Chat tables
+    $exists = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'")->fetch();
+    if (!$exists) {
+        $pdo->exec("
+            CREATE TABLE conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL DEFAULT 'group',
+                name TEXT,
+                description TEXT,
+                created_by INTEGER NOT NULL,
+                is_private INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE conversation_members (
+                conversation_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT DEFAULT 'member',
+                joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_read_at DATETIME,
+                PRIMARY KEY (conversation_id, user_id),
+                FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conversation_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX idx_messages_conv ON messages(conversation_id);
+            CREATE INDEX idx_messages_created ON messages(created_at);
+            CREATE INDEX idx_conv_members_user ON conversation_members(user_id);
+        ");
+    }
 }
 
 function initDatabase(PDO $pdo): void {
@@ -122,11 +164,46 @@ function initDatabase(PDO $pdo): void {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         );
 
+        CREATE TABLE conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL DEFAULT 'group',
+            name TEXT,
+            description TEXT,
+            created_by INTEGER NOT NULL,
+            is_private INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE conversation_members (
+            conversation_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role TEXT DEFAULT 'member',
+            joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_read_at DATETIME,
+            PRIMARY KEY (conversation_id, user_id),
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
         CREATE INDEX idx_posts_slug ON posts(slug);
         CREATE INDEX idx_posts_status ON posts(status);
         CREATE INDEX idx_posts_category ON posts(category_id);
         CREATE INDEX idx_comments_post ON comments(post_id);
         CREATE INDEX idx_comments_status ON comments(status);
+        CREATE INDEX idx_messages_conv ON messages(conversation_id);
+        CREATE INDEX idx_messages_created ON messages(created_at);
+        CREATE INDEX idx_conv_members_user ON conversation_members(user_id);
     ");
 
     $hash = password_hash('admin123', PASSWORD_DEFAULT);
@@ -166,7 +243,7 @@ function initDatabase(PDO $pdo): void {
         ->execute([
             'Chào mừng đến với WEB_Blogger',
             'chao-mung-den-voi-web-blogger',
-            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận</li>\n                <li>Đăng ký / Đăng nhập / Hồ sơ / Avatar</li>\n                <li>User đăng bài kèm ảnh</li>\n                <li>Quản trị admin riêng</li>\n            </ul>\n            <p>Admin: <code>admin</code> / <code>admin123</code></p>",
+            "<p>Đây là bài viết mẫu của <strong>WEB_Blogger</strong> – blog kỹ thuật & DIY.</p>\n            <p>Bạn có thể đăng bài, phân loại, gắn tag, nhận bình luận và quản trị dễ dàng.</p>\n            <h2>Tính năng chính</h2>\n            <ul>\n                <li>Đăng bài viết với ảnh đại diện</li>\n                <li>Category & Tag</li>\n                <li>Bình luận</li>\n                <li>Đăng ký / Đăng nhập / Hồ sơ / Avatar</li>\n                <li>User đăng bài kèm ảnh</li>\n                <li>Chat 1-1 & nhóm riêng tư</li>\n                <li>Quản trị admin riêng</li>\n            </ul>\n            <p>Admin: <code>admin</code> / <code>admin123</code></p>",
             'Bài viết chào mừng và hướng dẫn nhanh về blog kỹ thuật DIY.',
             1,
             1,
