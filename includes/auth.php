@@ -1,8 +1,4 @@
 <?php
-/**
- * Authentication helpers
- */
-
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/db.php';
 
@@ -37,10 +33,7 @@ function csrfToken(): string {
 function validateCsrfToken(?string $token): bool {
     startSession();
     $expected = $_SESSION['csrf_token'] ?? '';
-    if ($token === null || $token === '') {
-        return false;
-    }
-    return hash_equals($expected, $token);
+    return is_string($token) && $token !== '' && hash_equals($expected, $token);
 }
 
 function isLoggedIn(): bool {
@@ -87,10 +80,6 @@ function currentUser(): ?array {
         }
     }
     return $user;
-}
-
-function refreshCurrentUser(): void {
-    // Per-request static; gọi lại currentUser sau khi UPDATE hồ sơ trong cùng request
 }
 
 function login(string $username, string $password): bool {

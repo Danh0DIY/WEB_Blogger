@@ -1,15 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
-
-function str_len(string $str): int {
-    return function_exists('mb_strlen') ? mb_strlen($str, 'UTF-8') : strlen($str);
-}
-function str_cut(string $str, int $start, ?int $length = null): string {
-    if (function_exists('mb_substr')) {
-        return $length === null ? mb_substr($str, $start, null, 'UTF-8') : mb_substr($str, $start, $length, 'UTF-8');
-    }
-    return $length === null ? substr($str, $start) : substr($str, $start, $length);
-}
+require_once __DIR__ . '/includes/config.php';
 
 function getDB(): PDO {
     static $pdo = null;
@@ -17,10 +7,17 @@ function getDB(): PDO {
         $isNew = !file_exists(DB_PATH);
         $dir = dirname(DB_PATH);
         if (!is_dir($dir)) mkdir($dir, 0755, true);
+
         $pdo = new PDO('sqlite:' . DB_PATH);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        $pdo->setAttribute(PDO::ATTR_TIMEOUT, 5);
         $pdo->exec('PRAGMA foreign_keys = ON');
+        $pdo->exec('PRAGMA journal_mode = WAL');
+        $pdo->exec('PRAGMA synchronous = NORMAL');
+        $pdo->exec('PRAGMA temp_store = MEMORY');
+        $pdo->exec('PRAGMA cache_size = -20000');
+
         if ($isNew) initDatabase($pdo); else migrateDatabase($pdo);
     }
     return $pdo;
@@ -32,11 +29,13 @@ function migrateDatabase(PDO $pdo): void {
     if (!in_array('user_id', $names, true)) {
         $pdo->exec("ALTER TABLE comments ADD COLUMN user_id INTEGER DEFAULT NULL");
     }
+
     $userCols = $pdo->query("PRAGMA table_info(users)")->fetchAll();
     $userNames = array_column($userCols, 'name');
     if (!in_array('avatar', $userNames, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL");
     }
+
     $hasPush = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='push_subscriptions'")->fetch();
     if (!$hasPush) {
         $pdo->exec("
@@ -65,6 +64,7 @@ function migrateDatabase(PDO $pdo): void {
             CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
         ");
     }
+
     $exists = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'")->fetch();
     if (!$exists) {
         $pdo->exec("
@@ -229,13 +229,42 @@ function initDatabase(PDO $pdo): void {
     ");
     $hash = password_hash('admin123', PASSWORD_DEFAULT);
     $pdo->prepare("INSERT INTO users (username, password, display_name, email, role) VALUES (?, ?, ?, ?, ?)")->execute(['admin', $hash, 'Administrator', 'admin@example.com', 'admin']);
-    $cats = [['ESP32 & IoT','esp32-iot','Dự án ESP32, Arduino, IoT'],['Điện tử','dien-tu','Mạch điện, linh kiện, hàn mạch'],['Lập trình','lap-trinh','Code, phần mềm, web, app'],['DIY & Chế tạo','diy-che-tao','Dự án tự làm, sửa chữa'],['Hướng dẫn','huong-dan','Tutorial, mẹo, tip']];
+    $cats = [
+        ['ESP32 & IoT','esp32-iot','Dự án ESP32, Arduino, IoT'],
+        ['Điện tử','dien-tu','Mạch điện, linh kiện, hàn mạch'],
+        ['Lập trình','lap-trinh','Code, phần mềm, web, automation'],
+        ['DIY & Chế tạo','diy-che-tao','Mô hình, vỏ, 3D, sửa chữa, sáng tạo']
+    ];
     $stmt = $pdo->prepare("INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)");
     foreach ($cats as $c) $stmt->execute($c);
-    $tags = [['ESP32','esp32'],['Arduino','arduino'],['PlatformIO','platformio'],['C++','cpp'],['Python','python'],['PCB','pcb'],['Sensor','sensor'],['Web','web'],['DIY','diy'],['Tutorial','tutorial']];
+
+    $tags = [
+        ['ESP32','esp32'], ['Arduino','arduino'], ['PlatformIO','platformio'], ['C++','cpp'],
+        ['Python','python'], ['PCB','pcb'], ['Sensor','sensor'], ['Web','web'], ['DIY','diy'], ['Tutorial','tutorial']
+    ];
     $stmt = $pdo->prepare("INSERT INTO tags (name, slug) VALUES (?, ?)");
     foreach ($tags as $t) $stmt->execute($t);
-    $pdo->prepare("INSERT INTO posts (title, slug, content, excerpt, category_id, author_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)")->execute(['Chào mừng đến với WEB_Blogger','chao-mung-den-voi-web-blogger','<p>Blog kỹ thuật & DIY.</p>','Bài chào mừng',1,1,'published']);
+
+    $pdo->prepare("INSERT INTO posts (title, slug, content, excerpt, category_id, author_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)")->execute([
+        'Chào mừng đến với WEB_Blogger',
+        'chao-mung-den-voi-web_blogger',
+        '<p>WEB_Blogger là nơi chia sẻ kiến thức DIY, lập trình, điện tử và các dự án thực tế.</p><p>Hãy bắt đầu bằng một bài viết đầu tiên của bạn.</p>',
+        'Khởi đầu cho một blog kỹ thuật và DIY.',
+        1,
+        1,
+        'published'
+    ]);
+}
+
+function str_len(string $str): int {
+    return function_exists('mb_strlen') ? mb_strlen($str, 'UTF-8') : strlen($str);
+}
+
+function str_cut(string $str, int $start, ?int $length = null): string {
+    if (function_exists('mb_substr')) {
+        return $length === null ? mb_substr($str, $start, null, 'UTF-8') : mb_substr($str, $start, $length, 'UTF-8');
+    }
+    return $length === null ? substr($str, $start) : substr($str, $start, $length);
 }
 
 function slugify(string $text): string {
@@ -252,21 +281,26 @@ function slugify(string $text): string {
     $text = preg_replace('/[\s-]+/', '-', trim($text));
     return $text ?: 'post-' . time();
 }
+
 function e(?string $str): string { return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8'); }
+
 function timeAgo(string $datetime): string {
     require_once __DIR__ . '/time.php';
     return timeAgoFixed($datetime);
 }
+
 function avatarUrl(?string $avatar, string $name = '?'): string {
     if ($avatar) return SITE_URL . '/' . AVATAR_URL . $avatar;
     return '';
 }
+
 function avatarInitial(string $name): string {
     $name = trim($name);
     if ($name === '') return '?';
     if (function_exists('mb_substr')) return mb_strtoupper(mb_substr($name, 0, 1, 'UTF-8'), 'UTF-8');
     return strtoupper(substr($name, 0, 1));
 }
+
 function uploadImage(array $file, string $destDir, ?string &$error = null): ?string {
     if (empty($file['name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
     if (($file['error'] ?? 0) !== UPLOAD_ERR_OK) { $error = 'Lỗi upload file.'; return null; }
@@ -277,4 +311,36 @@ function uploadImage(array $file, string $destDir, ?string &$error = null): ?str
     $filename = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     if (!move_uploaded_file($file['tmp_name'], rtrim($destDir, '/\\') . DIRECTORY_SEPARATOR . $filename)) { $error = 'Không thể lưu file.'; return null; }
     return $filename;
+}
+
+function getCacheKey(string $prefix, array $params = []): string {
+    if (!$params) return $prefix;
+    return $prefix . ':' . md5(json_encode($params, JSON_UNESCAPED_UNICODE));
+}
+
+function maybeGetCached(string $cacheKey): mixed {
+    if (!function_exists('apcu_fetch') && !function_exists('xcache_get')) {
+        return null;
+    }
+    if (function_exists('apcu_fetch')) {
+        $value = apcu_fetch($cacheKey, $success);
+        return $success ? $value : null;
+    }
+    if (function_exists('xcache_get')) {
+        return xcache_get($cacheKey);
+    }
+    return null;
+}
+
+function maybeSetCache(string $cacheKey, mixed $value, int $ttl = 300): bool {
+    if (!function_exists('apcu_store') && !function_exists('xcache_set')) {
+        return false;
+    }
+    if (function_exists('apcu_store')) {
+        return apcu_store($cacheKey, $value, $ttl);
+    }
+    if (function_exists('xcache_set')) {
+        return xcache_set($cacheKey, $value, $ttl);
+    }
+    return false;
 }

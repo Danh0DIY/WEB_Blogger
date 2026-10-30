@@ -5,7 +5,6 @@ requireLogin();
 $db = getDB();
 $userId = (int)$_SESSION['user_id'];
 
-// Luôn lấy user mới nhất từ DB
 $stmt = $db->prepare('SELECT id, username, display_name, email, avatar, role, created_at FROM users WHERE id = ?');
 $stmt->execute([$userId]);
 $user = $stmt->fetch();
@@ -19,7 +18,6 @@ $msg = '';
 $msgType = '';
 $tab = $_GET['tab'] ?? 'profile';
 
-// Cập nhật hồ sơ
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'profile') {
     $token = $_POST['csrf_token'] ?? '';
     if (!validateCsrfToken($token)) {
@@ -78,7 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'profi
     $tab = 'profile';
 }
 
-// Đổi mật khẩu
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'password') {
     $token = $_POST['csrf_token'] ?? '';
     if (!validateCsrfToken($token)) {
@@ -102,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'passw
     $tab = 'password';
 }
 
-// Thống kê bài viết của user
 $counter = $db->prepare('SELECT COUNT(*) FROM posts WHERE author_id = ?');
 $counter->execute([$userId]);
 $postCount = (int)$counter->fetchColumn();

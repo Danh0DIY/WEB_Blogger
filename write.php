@@ -15,7 +15,6 @@ if ($id) {
     $stmt->execute([$id, $userId]);
     $post = $stmt->fetch();
     if (!$post) {
-        // Admin có thể sửa mọi bài qua admin panel; user chỉ sửa bài của mình
         header('Location: my-posts.php');
         exit;
     }
