@@ -13,19 +13,33 @@ function startSession(): void {
 
     $host = strtolower($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost');
     $host = explode(':', $host)[0];
-    $secure = isHttpsRequest() || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+    $isLocal = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
 
     session_name(SESSION_NAME);
     session_set_cookie_params([
         'lifetime' => 60 * 60 * 24 * 30,
         'path'     => '/',
         'domain'   => '',
-        'secure'   => $secure && !in_array($host, ['localhost', '127.0.0.1', '::1'], true) ? true : false,
+        'secure'   => false,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
 
     session_start();
+}
+
+function csrfToken(): string {
+    startSession();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function validateCsrfToken(?string $token): bool {
+    startSession();
+    $expected = $_SESSION['csrf_token'] ?? '';
+    return is_string($token) && $token !== '' && hash_equals($expected, $token);
 }
 
 function isLoggedIn(): bool {
