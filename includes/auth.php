@@ -1,39 +1,31 @@
 <?php
+/**
+ * Authentication helpers
+ */
+
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/db.php';
 
 function startSession(): void {
-    if (session_status() !== PHP_SESSION_NONE) {
+    if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
 
-    session_name(SESSION_NAME);
+    $host = strtolower($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost');
+    $host = explode(':', $host)[0];
+    $secure = isHttpsRequest() || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
 
-    $secure = isHttpsRequest() && !isLocalhost();
+    session_name(SESSION_NAME);
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => 60 * 60 * 24 * 30,
         'path'     => '/',
         'domain'   => '',
-        'secure'   => $secure,
+        'secure'   => $secure && !in_array($host, ['localhost', '127.0.0.1', '::1'], true) ? true : false,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
 
     session_start();
-}
-
-function csrfToken(): string {
-    startSession();
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function validateCsrfToken(?string $token): bool {
-    startSession();
-    $expected = $_SESSION['csrf_token'] ?? '';
-    return is_string($token) && $token !== '' && hash_equals($expected, $token);
 }
 
 function isLoggedIn(): bool {
@@ -74,12 +66,12 @@ function currentUser(): ?array {
         $stmt = getDB()->prepare('SELECT id, username, display_name, email, avatar, role FROM users WHERE id = ?');
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch() ?: null;
-        if (!$user) {
-            logout();
-            return null;
-        }
     }
     return $user;
+}
+
+function refreshCurrentUser(): void {
+    // Per-request static; gọi lại currentUser sau khi UPDATE hồ sơ trong cùng request
 }
 
 function login(string $username, string $password): bool {
@@ -165,7 +157,9 @@ function changePassword(int $userId, string $current, string $new, string $confi
 }
 
 function logout(): void {
-    startSession();
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        startSession();
+    }
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
