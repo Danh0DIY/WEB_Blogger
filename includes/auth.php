@@ -26,6 +26,23 @@ function startSession(): void {
     session_start();
 }
 
+function csrfToken(): string {
+    startSession();
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function validateCsrfToken(?string $token): bool {
+    startSession();
+    $expected = $_SESSION['csrf_token'] ?? '';
+    if ($token === null || $token === '') {
+        return false;
+    }
+    return hash_equals($expected, $token);
+}
+
 function isLoggedIn(): bool {
     startSession();
     return !empty($_SESSION['user_id']);

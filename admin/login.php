@@ -13,20 +13,24 @@ if (isLoggedIn()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    if ($username === '' || $password === '') {
-        $error = 'Vui lòng nhập đầy đủ thông tin.';
-    } elseif (login($username, $password)) {
-        if (isAdmin()) {
-            header('Location: index.php');
-            exit;
-        }
-        // User thường không được vào admin
-        logout();
-        $error = 'Tài khoản này không có quyền quản trị.';
+    $token = $_POST['csrf_token'] ?? '';
+    if (!validateCsrfToken($token)) {
+        $error = 'Phiên làm việc đã hết hạn. Vui lòng thử lại.';
     } else {
-        $error = 'Sai tên đăng nhập hoặc mật khẩu.';
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        if ($username === '' || $password === '') {
+            $error = 'Vui lòng nhập đầy đủ thông tin.';
+        } elseif (login($username, $password)) {
+            if (isAdmin()) {
+                header('Location: index.php');
+                exit;
+            }
+            logout();
+            $error = 'Tài khoản này không có quyền quản trị.';
+        } else {
+            $error = 'Sai tên đăng nhập hoặc mật khẩu.';
+        }
     }
 }
 ?>
@@ -50,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="post">
+                <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
                 <div class="form-group">
                     <label for="username">Tên đăng nhập</label>
                     <input type="text" id="username" name="username" required autofocus value="<?= e($_POST['username'] ?? '') ?>">

@@ -12,6 +12,8 @@
 define('SITE_NAME', 'WEB_Blogger');
 define('SITE_DESCRIPTION', 'Blog kỹ thuật & DIY - Chia sẻ kiến thức, dự án, mẹo hay');
 
+define('APP_DEBUG', false);
+
 // URL đầy đủ khi production (https://domain.com). Để trống khi chạy local.
 define('SITE_URL', '');
 
@@ -42,5 +44,5 @@ define('POSTS_PER_PAGE', 9);
 
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+error_reporting(APP_DEBUG ? E_ALL : 0);
+ini_set('display_errors', APP_DEBUG ? '1' : '0');

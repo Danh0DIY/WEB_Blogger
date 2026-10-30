@@ -9,21 +9,26 @@ if (isLoggedIn()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $password2 = $_POST['password2'] ?? '';
-    $displayName = trim($_POST['display_name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-
-    if ($password !== $password2) {
-        $error = 'Mật khẩu xác nhận không khớp.';
+    $token = $_POST['csrf_token'] ?? '';
+    if (!validateCsrfToken($token)) {
+        $error = 'Phiên làm việc đã hết hạn. Vui lòng thử lại.';
     } else {
-        $err = register($username, $password, $displayName, $email);
-        if ($err === null) {
-            header('Location: index.php');
-            exit;
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $password2 = $_POST['password2'] ?? '';
+        $displayName = trim($_POST['display_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+
+        if ($password !== $password2) {
+            $error = 'Mật khẩu xác nhận không khớp.';
+        } else {
+            $err = register($username, $password, $displayName, $email);
+            if ($err === null) {
+                header('Location: index.php');
+                exit;
+            }
+            $error = $err;
         }
-        $error = $err;
     }
 }
 
@@ -42,6 +47,7 @@ require __DIR__ . '/includes/header.php';
             <?php endif; ?>
 
             <form method="post">
+                <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
                 <div class="form-group">
                     <label for="username">Tên đăng nhập *</label>
                     <input type="text" id="username" name="username" required autofocus

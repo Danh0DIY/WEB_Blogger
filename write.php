@@ -31,76 +31,81 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title = trim($_POST['title'] ?? '');
-    $content = trim($_POST['content'] ?? '');
-    $excerpt = trim($_POST['excerpt'] ?? '');
-    $categoryId = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : null;
-    $status = ($_POST['status'] ?? '') === 'published' ? 'published' : 'draft';
-    $selectedTags = array_map('intval', $_POST['tags'] ?? []);
-    $slug = trim($_POST['slug'] ?? '');
-    if ($slug === '') $slug = slugify($title);
-
-    if ($title === '' || $content === '') {
-        $error = 'Tiêu đề và nội dung không được để trống.';
+    $token = $_POST['csrf_token'] ?? '';
+    if (!validateCsrfToken($token)) {
+        $error = 'Phiên làm việc đã hết hạn. Vui lòng thử lại.';
     } else {
-        $featuredImage = $post['featured_image'] ?? null;
-        $uploadErr = null;
+        $title = trim($_POST['title'] ?? '');
+        $content = trim($_POST['content'] ?? '');
+        $excerpt = trim($_POST['excerpt'] ?? '');
+        $categoryId = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : null;
+        $status = ($_POST['status'] ?? '') === 'published' ? 'published' : 'draft';
+        $selectedTags = array_map('intval', $_POST['tags'] ?? []);
+        $slug = trim($_POST['slug'] ?? '');
+        if ($slug === '') $slug = slugify($title);
 
-        if (!empty($_FILES['featured_image']['name'])) {
-            $newImg = uploadImage($_FILES['featured_image'], UPLOAD_DIR, $uploadErr);
-            if ($uploadErr) {
-                $error = $uploadErr;
-            } elseif ($newImg) {
-                if ($featuredImage && file_exists(UPLOAD_DIR . $featuredImage)) {
-                    @unlink(UPLOAD_DIR . $featuredImage);
+        if ($title === '' || $content === '') {
+            $error = 'Tiêu đề và nội dung không được để trống.';
+        } else {
+            $featuredImage = $post['featured_image'] ?? null;
+            $uploadErr = null;
+
+            if (!empty($_FILES['featured_image']['name'])) {
+                $newImg = uploadImage($_FILES['featured_image'], UPLOAD_DIR, $uploadErr);
+                if ($uploadErr) {
+                    $error = $uploadErr;
+                } elseif ($newImg) {
+                    if ($featuredImage && file_exists(UPLOAD_DIR . $featuredImage)) {
+                        @unlink(UPLOAD_DIR . $featuredImage);
+                    }
+                    $featuredImage = $newImg;
                 }
-                $featuredImage = $newImg;
+            }
+
+            if (isset($_POST['remove_image']) && $featuredImage) {
+                if (file_exists(UPLOAD_DIR . $featuredImage)) @unlink(UPLOAD_DIR . $featuredImage);
+                $featuredImage = null;
+            }
+
+            if ($error === '') {
+                $check = $db->prepare('SELECT id FROM posts WHERE slug = ? AND id != ?');
+                $check->execute([$slug, $id]);
+                if ($check->fetch()) {
+                    $slug .= '-' . time();
+                }
+
+                if ($id) {
+                    $db->prepare('UPDATE posts SET title=?, slug=?, content=?, excerpt=?, featured_image=?, category_id=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND author_id=?')
+                        ->execute([$title, $slug, $content, $excerpt ?: null, $featuredImage, $categoryId, $status, $id, $userId]);
+                } else {
+                    $db->prepare('INSERT INTO posts (title, slug, content, excerpt, featured_image, category_id, author_id, status) VALUES (?,?,?,?,?,?,?,?)')
+                        ->execute([$title, $slug, $content, $excerpt ?: null, $featuredImage, $categoryId, $userId, $status]);
+                    $id = (int)$db->lastInsertId();
+                }
+
+                $db->prepare('DELETE FROM post_tags WHERE post_id = ?')->execute([$id]);
+                $ins = $db->prepare('INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)');
+                foreach ($selectedTags as $tid) {
+                    if ($tid > 0) $ins->execute([$id, $tid]);
+                }
+
+                header('Location: my-posts.php?msg=saved');
+                exit;
             }
         }
 
-        if (isset($_POST['remove_image']) && $featuredImage) {
-            if (file_exists(UPLOAD_DIR . $featuredImage)) @unlink(UPLOAD_DIR . $featuredImage);
-            $featuredImage = null;
-        }
-
-        if ($error === '') {
-            $check = $db->prepare('SELECT id FROM posts WHERE slug = ? AND id != ?');
-            $check->execute([$slug, $id]);
-            if ($check->fetch()) {
-                $slug .= '-' . time();
-            }
-
-            if ($id) {
-                $db->prepare('UPDATE posts SET title=?, slug=?, content=?, excerpt=?, featured_image=?, category_id=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND author_id=?')
-                    ->execute([$title, $slug, $content, $excerpt ?: null, $featuredImage, $categoryId, $status, $id, $userId]);
-            } else {
-                $db->prepare('INSERT INTO posts (title, slug, content, excerpt, featured_image, category_id, author_id, status) VALUES (?,?,?,?,?,?,?,?)')
-                    ->execute([$title, $slug, $content, $excerpt ?: null, $featuredImage, $categoryId, $userId, $status]);
-                $id = (int)$db->lastInsertId();
-            }
-
-            $db->prepare('DELETE FROM post_tags WHERE post_id = ?')->execute([$id]);
-            $ins = $db->prepare('INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)');
-            foreach ($selectedTags as $tid) {
-                if ($tid > 0) $ins->execute([$id, $tid]);
-            }
-
-            header('Location: my-posts.php?msg=saved');
-            exit;
-        }
+        $post = [
+            'id' => $id,
+            'title' => $title,
+            'slug' => $slug,
+            'content' => $content,
+            'excerpt' => $excerpt,
+            'category_id' => $categoryId,
+            'status' => $status,
+            'featured_image' => $featuredImage ?? ($post['featured_image'] ?? null),
+        ];
+        $postTagIds = $selectedTags;
     }
-
-    $post = [
-        'id' => $id,
-        'title' => $title,
-        'slug' => $slug,
-        'content' => $content,
-        'excerpt' => $excerpt,
-        'category_id' => $categoryId,
-        'status' => $status,
-        'featured_image' => $featuredImage ?? ($post['featured_image'] ?? null),
-    ];
-    $postTagIds = $selectedTags;
 }
 
 $pageTitle = $id ? 'Sửa bài viết' : 'Viết bài mới';
@@ -119,6 +124,7 @@ require __DIR__ . '/includes/header.php';
         <?php endif; ?>
 
         <form method="post" enctype="multipart/form-data" class="write-form">
+            <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
             <div class="form-group">
                 <label for="title">Tiêu đề *</label>
                 <input type="text" id="title" name="title" required value="<?= e($post['title'] ?? '') ?>">

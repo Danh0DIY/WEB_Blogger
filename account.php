@@ -21,51 +21,57 @@ $tab = $_GET['tab'] ?? 'profile';
 
 // Cập nhật hồ sơ
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'profile') {
-    $displayName = trim($_POST['display_name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $dnLen = str_len($displayName);
-
-    if ($dnLen < 2 || $dnLen > 50) {
-        $msg = 'Tên hiển thị phải từ 2–50 ký tự.';
-        $msgType = 'error';
-    } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $msg = 'Email không hợp lệ.';
+    $token = $_POST['csrf_token'] ?? '';
+    if (!validateCsrfToken($token)) {
+        $msg = 'Phiên làm việc đã hết hạn. Vui lòng thử lại.';
         $msgType = 'error';
     } else {
-        if ($email !== '') {
-            $check = $db->prepare('SELECT id FROM users WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""');
-            $check->execute([$email, $userId]);
-            if ($check->fetch()) {
-                $msg = 'Email đã được sử dụng.';
-                $msgType = 'error';
-            }
-        }
-        if ($msg === '') {
-            $avatar = $user['avatar'];
-            $uploadErr = null;
-            if (!empty($_FILES['avatar']['name'])) {
-                $newAvatar = uploadImage($_FILES['avatar'], AVATAR_DIR, $uploadErr);
-                if ($uploadErr) {
-                    $msg = $uploadErr;
+        $displayName = trim($_POST['display_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $dnLen = str_len($displayName);
+
+        if ($dnLen < 2 || $dnLen > 50) {
+            $msg = 'Tên hiển thị phải từ 2–50 ký tự.';
+            $msgType = 'error';
+        } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $msg = 'Email không hợp lệ.';
+            $msgType = 'error';
+        } else {
+            if ($email !== '') {
+                $check = $db->prepare('SELECT id FROM users WHERE email = ? AND id != ? AND email IS NOT NULL AND email != ""');
+                $check->execute([$email, $userId]);
+                if ($check->fetch()) {
+                    $msg = 'Email đã được sử dụng.';
                     $msgType = 'error';
-                } elseif ($newAvatar) {
-                    if ($avatar && file_exists(AVATAR_DIR . $avatar)) {
-                        @unlink(AVATAR_DIR . $avatar);
-                    }
-                    $avatar = $newAvatar;
                 }
             }
-            if (isset($_POST['remove_avatar']) && $avatar) {
-                if (file_exists(AVATAR_DIR . $avatar)) @unlink(AVATAR_DIR . $avatar);
-                $avatar = null;
-            }
             if ($msg === '') {
-                $db->prepare('UPDATE users SET display_name = ?, email = ?, avatar = ? WHERE id = ?')
-                    ->execute([$displayName, $email ?: null, $avatar, $userId]);
-                $msg = 'Đã cập nhật hồ sơ.';
-                $msgType = 'success';
-                $stmt->execute([$userId]);
-                $user = $stmt->fetch();
+                $avatar = $user['avatar'];
+                $uploadErr = null;
+                if (!empty($_FILES['avatar']['name'])) {
+                    $newAvatar = uploadImage($_FILES['avatar'], AVATAR_DIR, $uploadErr);
+                    if ($uploadErr) {
+                        $msg = $uploadErr;
+                        $msgType = 'error';
+                    } elseif ($newAvatar) {
+                        if ($avatar && file_exists(AVATAR_DIR . $avatar)) {
+                            @unlink(AVATAR_DIR . $avatar);
+                        }
+                        $avatar = $newAvatar;
+                    }
+                }
+                if (isset($_POST['remove_avatar']) && $avatar) {
+                    if (file_exists(AVATAR_DIR . $avatar)) @unlink(AVATAR_DIR . $avatar);
+                    $avatar = null;
+                }
+                if ($msg === '') {
+                    $db->prepare('UPDATE users SET display_name = ?, email = ?, avatar = ? WHERE id = ?')
+                        ->execute([$displayName, $email ?: null, $avatar, $userId]);
+                    $msg = 'Đã cập nhật hồ sơ.';
+                    $msgType = 'success';
+                    $stmt->execute([$userId]);
+                    $user = $stmt->fetch();
+                }
             }
         }
     }
@@ -74,27 +80,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'profi
 
 // Đổi mật khẩu
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'password') {
-    $err = changePassword(
-        $userId,
-        $_POST['current_password'] ?? '',
-        $_POST['new_password'] ?? '',
-        $_POST['confirm_password'] ?? ''
-    );
-    if ($err === null) {
-        $msg = 'Đã đổi mật khẩu thành công.';
-        $msgType = 'success';
-    } else {
-        $msg = $err;
+    $token = $_POST['csrf_token'] ?? '';
+    if (!validateCsrfToken($token)) {
+        $msg = 'Phiên làm việc đã hết hạn. Vui lòng thử lại.';
         $msgType = 'error';
+    } else {
+        $err = changePassword(
+            $userId,
+            $_POST['current_password'] ?? '',
+            $_POST['new_password'] ?? '',
+            $_POST['confirm_password'] ?? ''
+        );
+        if ($err === null) {
+            $msg = 'Đã đổi mật khẩu thành công.';
+            $msgType = 'success';
+        } else {
+            $msg = $err;
+            $msgType = 'error';
+        }
     }
     $tab = 'password';
 }
 
 // Thống kê bài viết của user
-$postCount = (int)$db->prepare('SELECT COUNT(*) FROM posts WHERE author_id = ?')->execute([$userId]) ?: 0;
-$cStmt = $db->prepare('SELECT COUNT(*) FROM posts WHERE author_id = ?');
-$cStmt->execute([$userId]);
-$postCount = (int)$cStmt->fetchColumn();
+$counter = $db->prepare('SELECT COUNT(*) FROM posts WHERE author_id = ?');
+$counter->execute([$userId]);
+$postCount = (int)$counter->fetchColumn();
 
 $pageTitle = 'Hồ sơ';
 require __DIR__ . '/includes/header.php';
@@ -137,6 +148,7 @@ require __DIR__ . '/includes/header.php';
                 <h1>Đổi mật khẩu</h1>
                 <form method="post" class="profile-form">
                     <input type="hidden" name="action" value="password">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
                     <div class="form-group">
                         <label for="current_password">Mật khẩu hiện tại *</label>
                         <input type="password" id="current_password" name="current_password" required>
@@ -157,6 +169,7 @@ require __DIR__ . '/includes/header.php';
                 <h1>Hồ sơ của tôi</h1>
                 <form method="post" enctype="multipart/form-data" class="profile-form">
                     <input type="hidden" name="action" value="profile">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
 
                     <div class="form-group">
                         <label>Avatar</label>
